@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "additionalDirectories": [],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)"
+    ]
+  }
+}

@@ -50,9 +50,22 @@ existing ones travel. Any design that only transports existing cells forward is 
 └── reports/                  one markdown report per phase
 ```
 
-The starter kit ships `score_h5ad.py` and `common/core_metrics.py` — the reference implementations
-of `de_score`, `de_genes`, `_signed_overlap`, `de_direction`, `mmd_unbiased`, `variogram_score` —
-plus per-task loaders and `DATA_SOURCES.md`.
+**The official scorer is `veckit`**, a pip package: `pip install veckit`, source at
+https://github.com/aristoteleo/veckit. It contains the reference implementations of `de_score`,
+`de_genes`, `_signed_overlap`, `de_direction`, `mmd_unbiased`, `variogram_score`, `split_half`,
+the baselines (`T1/baselines.py::copy_last`, `::pseudobulk_shift`), and `bake.py` which builds the
+board bundles and the adversarial controls. The site also refers to a `score_h5ad.py` entry point;
+if both exist, establish which is current and say so in `reports/phase1.md`.
+
+CLI form:
+
+```
+veckit --task T1 --input pred.h5ad --target <truth>.h5ad --reference E9.5.h5ad
+```
+
+**Note what `--target` implies: local scoring requires a truth file you actually hold.** We do not
+hold E10.5 or E12.5, so every local number comes from a proxy split we construct ourselves. This is
+the constraint that makes Phase 2 load-bearing rather than optional.
 
 E10.5 and E12.5 targets are **never distributed**. E12.5 inputs appear at the final phase without
 labels; E10.5 answers are released when the final phase opens. You cannot score against either
@@ -61,8 +74,10 @@ locally.
 Python env: `uv` or `conda`, everything pinned in a lockfile. Expect `scanpy`, `anndata`, `torch`,
 `scikit-learn`, `POT`, and a `numpy` version check against the starter kit.
 
-Timeline: development phase is open now. **Final test phase opens 2026-10-25; final submissions due
-2026-11-02.** Budget backwards from that.
+Timeline (from the live site, which supersedes the dates in the NeurIPS proposal PDF):
+P2 development phase opened 2026-08-15 and is open now. **P3 test phase opens 2026-10-20**, when
+validation answers are released and the test leaderboard opens. **Final submissions due 2026-12-02**,
+official evaluation starts 2026-12-04, winners announced 2026-12-11. Budget backwards from 2 December.
 
 If the starter kit or the data is not on disk, **stop and ask** — do not fabricate a schema.
 
@@ -238,6 +253,40 @@ below `copy_last`. That is the published finding, not a bug in the starter kit. 
 instinct is "train a neural ODE on E8.5→E9.5 and integrate to E12.5," you are reproducing a known
 negative result.
 
+### Where the score actually sits — read this before choosing an architecture
+
+The organisers state the decomposition outright: `copy_last` submits **genuine single cells with
+genuine gene–gene structure**, so it is very hard to beat on the distributional metrics, while
+`pseudobulk_shift` wins on the expression-change metrics by actually moving in the right direction.
+
+Map that onto the weights: `mmd_u` (30%) + `variogram` (20%) = **50% of the score is population
+structure, where `copy_last` is already strong**. `de_score` (25%) + `de_direction` (25%) = **50%
+is change, where doing nothing scores zero by construction**.
+
+The implication is sharp and should constrain every design decision: **carry real cells forward so
+the distributional half stays near `copy_last`, and win on the change half.** A generative model
+that synthesises cells from scratch has to re-earn 50% of the score that shifting real cells gets
+for free. That is a large bet and it needs to be justified against a measured alternative, not
+assumed.
+
+### Two cheap experiments to run before anything ambitious
+
+1. **`damp`.** `pseudobulk_shift` takes a damping factor; the tutorial notes the first correction to
+   try is `damp = Δt_target / Δt_observed`. The observed interval is E8.5→E9.5 = 1.0 day. The
+   validation target is 1.0 day out (`damp ≈ 1`), the **test target is 3.0 days out (`damp ≈ 3`)**.
+   The shipped baseline implicitly assumes `damp = 1` on both. Sweep it on a proxy split.
+2. **Cell-type granularity.** `Δ_k` is computed per annotated type; finer or coarser types change
+   what the shift can express. Cheap to sweep, and it interacts with the harmonisation problem in
+   section 8.
+
+### Adversarial controls are on the public board
+
+`ctrl_one_cell` (one average cell tiled), `ctrl_scale_ref` (reference × 2.0) and `ctrl_shrink_ref`
+(reference × 0.99) are scored on every run and left visible. A control scoring above the floor is
+treated as a bug in the metrics. Two consequences: the traps in section 9 are not hypothetical, they
+are instrumented; and if you find yourself reasoning toward something that resembles one of these,
+you have found the exploit the organisers already closed.
+
 ---
 
 ## 7. The measurement problem — solve this before modelling
@@ -382,6 +431,11 @@ Do not advance past a gate without the artefact.
   normalisation convention, whether a specific external dataset is permitted, and any point where
   the starter kit contradicts this brief. The starter kit and
   `virtualembryo.ai/challenge/evaluation?task=1` are authoritative over this document.
+- Two unresolved facts to settle in Phase 1 and record in `reports/phase1.md`: (a) each task
+  directory ships both `metrics.py` and `metrics_v2.py` - establish which one the leaderboard runs;
+  (b) `T1/baselines.py` is cited by the baselines page but is **not** in the public repo, so
+  `copy_last` and `pseudobulk_shift` must be reimplemented from the published descriptions and the
+  tutorial notebook. Neither is more than a few lines, but they are ours to get right.
 
 ---
 
