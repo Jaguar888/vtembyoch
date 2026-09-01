@@ -1,0 +1,34 @@
+# Competition data — never commit. Large, and redistribution is restricted.
+data/
+starter-kit/
+
+# Model artefacts and submissions
+*.h5ad
+*.ckpt
+*.pt
+*.pth
+results/**/*.h5ad
+results/checkpoints/
+
+# Keep the experiment log and the reports
+!results/experiments.csv
+!reports/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local state
+.claude/settings.local.json
